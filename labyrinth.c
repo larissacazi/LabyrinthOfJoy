@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 typedef struct edge EDGE;
 
@@ -31,6 +32,14 @@ typedef struct Edge {
 	float dist;
 	BOOL isPortal;
 } Edge;
+
+//Way==========================================================================
+typedef struct Way{
+	int *vector;
+	int numOfPoints;
+	float totalDistance;
+	BOOL finalized;
+} Way;
 
 //Point Functions==============================================================
 void printPoints(Point *points, int np) {
@@ -132,6 +141,18 @@ Edge **createGraph(int np) {
 	return graph;
 }
 
+Way *createWay(int np) {
+	int i = 0;
+	Way *way = NULL;
+
+	way = (Way*)calloc(1, sizeof(Way));
+	way->vector = malloc(sizeof(int) * np);
+	for(i=0; i<np; i++) way->vector[i] = -1;
+	way->numOfPoints = 0;
+
+	return way;
+}
+
 Edge **copyGraph(Edge **graph, int ng) {
 	Edge **aux = NULL;
 	int i = 0, j = 0;
@@ -213,8 +234,10 @@ BOOL isAllVisited(BOOL *visited, int n) {
 }
 
 BOOL hasChildren(Edge **graph, int idx, int np) {
+	int j = 0;
 	for(j=0; j<np; j++)	{
-		if(graph[idx][j].dist >= 0) retur TRUE;
+		if(j == idx) continue;
+		if(graph[idx][j].dist >= 0) return TRUE;
 	}
 	return FALSE;
 }
@@ -227,7 +250,6 @@ void fillParent(int *parent, int n) {
 
 void printWay(int *vector, float sum) {
 	int i = 0;
-	int len = strlen(vector);
 
 	while(vector[i] != -1) {
 		printf("%d ", vector[i]);
@@ -236,12 +258,12 @@ void printWay(int *vector, float sum) {
 	printf("%.2f\n", sum);
 }
 
-int getNextChildren(Edge **graph, int np, int idx) {
+int getNextChildren(Edge **graph, int np, int idx, int ab) {
 	int i = 0;
 
 	if(idx >= np) return -1;
 
-	for(i=idx+1; i<np; i++) {
+	for(i=ab+1; i<np; i++) {
 		if(graph[idx][i].dist >= 0) {
 			return i;
 		}
@@ -250,35 +272,113 @@ int getNextChildren(Edge **graph, int np, int idx) {
 	return -1;
 }
 
-void getPossibleWays(Edge **graph, int np, int startIdx) {
-	int *vector = NULL;
-	BOOL *visited = NULL;
-	int *parent = NULL;
-	float sum = 0;
-	int aux = startIdx;
-	int vectorIdx = 0;
+void reallocWay(Way** ways, int *nWays, int np) {
+	int i = 0;
 
-	vector = (int*)calloc(sizeof(int)*np);
-	clearVector(vector, 0, np);
-	visited = (BOOL*)calloc(np, sizeof(BOOL));
-	clearBoolVector(visited, 0, np);
-	parent = (int*)malloc(sizeof(int) * np);
-	fillParent(parent, np);
+	(*ways) = (Way*)realloc((*ways), sizeof(Way)*((*nWays)+1));
+	(*ways)[(*nWays)].vector = malloc(sizeof(int) * np);
+	for(i=0; i<np; i++) (*ways)[(*nWays)].vector[i] = -1;
+	
+	(*ways)[(*nWays)].numOfPoints = 0;
+	(*ways)[(*nWays)].totalDistance = 0;
+	(*ways)[(*nWays)].finalized =  FALSE;
 
-	while(isAllVisited(visited, np) == FALSE) {
-		if(graph[aux][aux].isPortal == TRUE) {
-			vector[vectorIdx] = aux;
-			printWay(vector, sum);
-		}
+	(*nWays)++;
+}
 
-		if(hasChildren(graph, aux, np) == TRUE) {
-			aux = getNextChildren(graph, np, aux);
-		}
+void insertPointInWay(Way *way, Edge **graph, int from, int to) {
+	(*way).vector[(*way).numOfPoints] = from;
+	(*way).totalDistance = (*way).totalDistance + graph[from][to].dist;
+	(*way).finalized = graph[from][to].isPortal;
+	(*way).numOfPoints++;
+}
 
-		while(hasChildren(graph, aux, np) != FALSE || graph[aux][aux].isPortal != TRUE) {
+BOOL finalizedWay(Way way) {
+	return way.finalized;
+}
 
-		}
+void printWays(Way* ways, int n) {
+	int i = 0, j = 0;
+
+	for(i=0; i<n; i++) {
+		printf("---- Way[%d]:\n", i);
+		printf("\tFinalized =\t[%d]\n", ways[i].finalized);
+		printf("\tNumOfPoints =\t[%d]\n", ways[i].numOfPoints);
+		printf("\tTotalDist =\t[%.2f]\n", ways[i].totalDistance);
+		for(j=0; j<ways[i].numOfPoints; j++) printf("%d\t", ways[i].vector[j]);
+		printf("\n------------------\n");
 	}
+
+}
+
+int returnFather(Way way, int from) {
+	int j = 0;
+
+	for(j=0; j<way.numOfPoints; j++) {
+		if(way.vector[j] == from) return  way.vector[j-1];
+	}
+
+	return -1;
+}
+
+void copyLastway(Way *current, Way last) {
+	
+}
+
+void getPossibleWays(Edge **graph, int np, int startIdx) {
+	Way* ways = NULL;
+	int nWays = 0, i = 0;
+	int from = startIdx, to = startIdx, nextChildren = 0, last = startIdx;
+
+	ways = createWay(np); nWays++; i = nWays - 1;
+	last = from;
+	printf("Indexes: from[%d] to[%d] last[%d]\n", from, to, last);
+	insertPointInWay(&ways[i], graph, from, to);
+	printWays(ways, nWays);
+
+	while(TRUE) {
+		printf("========from [%d] last [%d] to [%d]\n", from, last, to);
+		while((nextChildren = getNextChildren(graph, np, from, last)) != -1) {//Enquanto existe filhos
+			printf("nextChildren = %d\n", nextChildren);
+			to = nextChildren;
+			printf("---From[%d] To[%d]\n", from, to);
+			printf("--finalized[%d] = %d\n", i, ways[i].finalized);
+			if(ways[i].finalized == TRUE) {//Se está finalizado, criar outro way
+				printf("TRUE\n");
+				reallocWay(&ways, &nWays, np); i++;
+				insertPointInWay(&ways[i], graph, from, to);
+				from = to;
+				last = from;
+			}
+			else if(nextChildren != -1){ //Se não está finalizado, vai preenchendo no mesmo way
+				printf("FALSE\n");
+				insertPointInWay(&ways[i], graph, from, to);
+				from = to;
+				last = from;
+			}
+			else if(nextChildren == -1) {
+				last = from;
+				from = returnFather(ways[i], from);
+				printf("Parent = %d from %d\n", from, last);
+				reallocWay(&ways, &nWays, np); i++;
+			}
+		}
+
+		insertPointInWay(&ways[i], graph, from, from);
+
+		//last = from;
+		//from = returnFather(ways[i], from);
+		//printf("Parent = %d from %d\n", from, last);
+
+		printf("1Enter...\n");
+		getchar();
+
+		printWays(ways, nWays);
+
+		printf("2Enter...\n");
+		getchar();
+	}
+	
 
 }
 
@@ -325,7 +425,7 @@ int main() {
 	}
 
 	//Reading Start Chamber
-	scanf("%d", &startIdx);
+	scanf("%d", &startIdx); startIdx = startIdx - 1;
 
 	//Print Every Information read 
 	//printf("Start point = %d\n", startIdx);
@@ -339,10 +439,11 @@ int main() {
 	//Converting in Graph
 	//printf("Converting in Graph\n");
 	graph = populateGraph(np, chambers, nc, segs, ns, startIdx);
-	//printf("Printing GRAPH...\n");
-	//printGraph(graph, np);
+	printf("Printing GRAPH...\n");
+	printGraph(graph, np);
 
 	//Working in this data
+	printf("Getting Possible Ways...startIdx[%d]\n", startIdx);
 	getPossibleWays(graph, np, startIdx);
 
 
