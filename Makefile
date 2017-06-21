@@ -1,2 +1,2 @@
 all: 
-	gcc -o labyrinth labyrinth.c
+	gcc -o labyrinth labyrinth.c -lm
