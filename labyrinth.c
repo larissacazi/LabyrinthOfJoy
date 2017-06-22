@@ -439,9 +439,9 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 		if(ways[i].finalized == TRUE && hasChildren(graph, ways[i].vector[ways[i].numOfPoints-1], np, fill) == TRUE) {
 			printf("finalized!\n");
 			reallocWay(&ways, &nWays, np, 1); i++;
-			copyLastway(&ways[i], ways[i-1]);
-			ways[i].finalized = FALSE;
-			from = ways[i].vector[ways[i].numOfPoints-1];
+			copyLastway(&ways[nWays-1], ways[i-1]);
+			ways[nWays-1].finalized = FALSE;
+			from = ways[nWays-1].vector[ways[i].numOfPoints-1];
 			printWays(ways, nWays);
 			printf("0000000000 \t finalized! I = %d nWays = %d\n", i, nWays);
 		}
@@ -544,7 +544,6 @@ void printSolution(Way *ways, int nWays) {
 		}
 		printf("%d\n", (int)ways[i].totalDistance);
 	}
-	printf("%c", '\32');
 }
 
 void swapWays(Way first, Way second, int np) {
