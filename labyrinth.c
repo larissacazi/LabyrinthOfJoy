@@ -410,7 +410,7 @@ int getIdFromWaysNotFinalized(Edge **graph, int np, Way *ways, int nWays) {
 
 	for(i=0; i<nWays; i++) {
 		from = ways[i].vector[ways[i].numOfPoints-1];
-		printf("getIdFromWaysNotFinalized::from %d\n", from); 
+		//printf("getIdFromWaysNotFinalized::from %d\n", from); 
 		if(from == -1) return -1;
 		if(ways[i].finalized == FALSE && hasChildren(graph, from, np, ways[i].fill) == TRUE) return i;
 	}
@@ -465,10 +465,12 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 			printWays(ways, nWays, np);
 			printf("----------------\n");
 
-			to = -1; j = i;
+			to = -1; j = i; old = ways[i].numOfPoints-2;
 			printf("j = %d, nWays = %d\n", j, nWays);
 			while(j<nWays) {
-				if(ways[j].vector[ways[j].numOfPoints-1] == from) {
+				printf("First %d Second %d\n", ways[j].vector[ways[j].numOfPoints-2], ways[i].vector[ways[i].numOfPoints-2]);
+				if(ways[j].vector[ways[j].numOfPoints-1] == from && 
+					ways[j].vector[ways[j].numOfPoints-2] == ways[i].vector[old]) {
 					printf("Ok j [%d] from[%d] to[%d]\n", j, from, to);
 					printf("nextChildren :");
 					nextChildren = getNextChildren(graph, np, from, to, fill);
@@ -555,31 +557,38 @@ void printSolution(Way *ways, int nWays) {
 	}
 }
 
-void swapWays(Way first, Way second, int np) {
+void swapWays(Way *first, Way *second, int np) {
 	Way *aux = createWay(np);
-	copyLastway(aux, first);
-	copyLastway(&first, second);
-	copyLastway(&second, *aux);
+	copyLastway(&aux[0], *first);
+	copyLastway(first, *second);
+	copyLastway(second, aux[0]);
 }
 
 void sortWays(Way *ways, int nWays, int np) {
-	int i, j;
-	for(i=0; i<nWays-1; i++) {
-			if(ways[i].totalDistance > ways[i+1].totalDistance) {
-				swapWays(ways[i], ways[i+1], np);
-			}
-			else if(ways[i].totalDistance == ways[i+1].totalDistance) {
-					if(ways[i].numOfPoints > ways[i+1].numOfPoints) {
-						swapWays(ways[i], ways[i+1], np);
-					}
-					else if(ways[i].numOfPoints == ways[i+1].numOfPoints) {
-							for(j=0; j<ways[i].numOfPoints; j++) {
-									if(ways[i].vector[j] > ways[i+1].vector[j]) {
-										swapWays(ways[i], ways[i+1], np);
-									}
-							}
-					}
-			}
+	int i, j, k;
+	for(k=0; k<nWays; k++) {
+		for(i=0; i<nWays-1; i++)
+				//printf("----- \t Order [%d]\n", i);
+				//printWays(ways, nWays, np);
+				if(ways[i].totalDistance > ways[i+1].totalDistance) {
+					//printf("Distance::Swap [%d] with [%d]\n", i, i+1);
+					swapWays(&ways[i], &ways[i+1], np);
+				}
+				else if(ways[i].totalDistance == ways[i+1].totalDistance) {
+						if(ways[i].numOfPoints > ways[i+1].numOfPoints) {
+							//printf("Points::Swap [%d] with [%d]\n", i, i+1);
+							swapWays(&ways[i], &ways[i+1], np);
+						}
+						else if(ways[i].numOfPoints == ways[i+1].numOfPoints) {
+								for(j=0; j<ways[i].numOfPoints; j++) {
+										if(ways[i].vector[j] > ways[i+1].vector[j]) {
+											//printf("Numbers::Swap [%d] with [%d]\n", i, i+1);
+											swapWays(&ways[i], &ways[i+1], np);
+										}
+								}
+						}
+				}
+				//printf("-----------\n");
 	}
 
 	printSolution(ways, nWays);
