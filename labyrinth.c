@@ -462,7 +462,21 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 			printWays(ways, nWays);
 			printf("----------------\n");
 
-			to = 0;
+			to = -1; j = i;
+			while(j<nWays) {
+				if(ways[j].vector[ways[j].numOfPoints-1] == from) {
+					printf("Ok j [%d] from[%d] to[%d]\n", j, from, to);
+					printf("nextChildren :");
+					nextChildren = getNextChildren(graph, np, from, to, fill);
+					printf("nextChildren = [%d]\n", nextChildren);
+					to = nextChildren;
+					printf("From[%d] To[%d]\n", from, to);
+					insertPointInWay(&ways[j], graph, from, to);
+					fill[to] = 1;
+				}
+				j++;
+			}
+			/*
 			for(j=i; j<nWays; j++) {
 				printf("Ok j [%d] from[%d] to[%d]\n", j, from, to);
 				printf("nextChildren :");
@@ -472,15 +486,14 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 				printf("From[%d] To[%d]\n", from, to);
 				insertPointInWay(&ways[j], graph, from, to);
 				fill[to] = 1;
-				getchar();
-			}
+			}*/
 
 			for(j=i; j<nWays; j++) copyFillToWay(&ways[j], np, fill);
 
 			from = to;
 		}
 		else if(num == 1) {
-			to = 0;
+			to = -1;
 			printf("num==1, from[%d] to[%d]\n", from, to);
 			nextChildren = getNextChildren(graph, np, from, to, fill);
 			to = nextChildren;
