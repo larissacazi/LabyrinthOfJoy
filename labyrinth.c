@@ -166,14 +166,15 @@ void copyFillFromWay(Way way, int np, int **fill) {
 	}
 }
 
-void copyFillToWay(Way *way, int np, int *fill) {
+void copyFillToWay(Way *way, int np) {
 	int i = 0;
 
 	//printf("copyFillToWay::numOfPoints = %d\n", np);
-	for(i=0; i<np; i++) {
+	
+	for(i=0; i<(*way).numOfPoints; i++) {
 		//printf("fill[%d] = %d\n", i, fill[i]);
 		//printf("way.fill[%d] = %d\n", i, (*way).fill[i]);
-		(*way).fill[i] = fill[i];
+		(*way).fill[(*way).vector[i]] = 1;
 	}
 }
 
@@ -344,7 +345,7 @@ BOOL finalizedWay(Way way) {
 	return way.finalized;
 }
 
-void printWays(Way* ways, int n) {
+void printWays(Way* ways, int n, int np) {
 	int i = 0, j = 0;
 
 	for(i=0; i<n; i++) {
@@ -353,6 +354,8 @@ void printWays(Way* ways, int n) {
 		printf("\tNumOfPoints =\t[%d]\n", ways[i].numOfPoints);
 		printf("\tTotalDist =\t[%.2f]\n", ways[i].totalDistance);
 		for(j=0; j<ways[i].numOfPoints; j++) printf("%d\t", ways[i].vector[j]);
+		printf("\n");
+		for(j=0; j<np; j++) printf("(%d, %d)\t", j, ways[i].fill[j]);
 		printf("\n------------------\n");
 	}
 
@@ -402,15 +405,14 @@ void getWays(Edge **graph, int np, Way **ways, int *nways, int *i, int from, int
 	}
 }*/
 
-int getIdFromWaysNotFinalized(Edge **graph, int np, Way *ways, int nWays, int *fill) {
+int getIdFromWaysNotFinalized(Edge **graph, int np, Way *ways, int nWays) {
 	int i = 0, from = 0;
 
 	for(i=0; i<nWays; i++) {
 		from = ways[i].vector[ways[i].numOfPoints-1];
-		printf("getIdFromWaysNotFinalized::from %d\n", from);
-		if(ways[i].finalized == TRUE && hasChildren(graph, from, np, fill) == FALSE) continue;
-		if(ways[i].finalized == FALSE && hasChildren(graph, from, np, fill) == FALSE) continue;
-		return i;
+		printf("getIdFromWaysNotFinalized::from %d\n", from); 
+		if(from == -1) return -1;
+		if(ways[i].finalized == FALSE && hasChildren(graph, from, np, ways[i].fill) == TRUE) return i;
 	}
 
 	return -1;
@@ -428,8 +430,8 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 	printf("Indexes: from[%d] to[%d]\n", from, to);
 	insertPointInWay(&ways[i], graph, from, to);
 	fill[to] = 1;
-	copyFillToWay(&ways[i], np, fill);
-	printWays(ways, nWays);
+	copyFillToWay(&ways[i], np);
+	printWays(ways, nWays, np);
 
 	while(i < nWays && i != -1) {
 		getchar();
@@ -442,7 +444,7 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 			copyLastway(&ways[nWays-1], ways[i-1]);
 			ways[nWays-1].finalized = FALSE;
 			from = ways[nWays-1].vector[ways[i].numOfPoints-1];
-			printWays(ways, nWays);
+			printWays(ways, nWays, np);
 			printf("0000000000 \t finalized! I = %d nWays = %d\n", i, nWays);
 		}
 
@@ -459,7 +461,7 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 				copyLastway(&ways[j], ways[i]);
 			}
 			printf("Ways: nWays[%d] i[%d]----------\n", nWays, i);
-			printWays(ways, nWays);
+			printWays(ways, nWays, np);
 			printf("----------------\n");
 
 			to = -1; j = i;
@@ -476,19 +478,8 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 				}
 				j++;
 			}
-			/*
-			for(j=i; j<nWays; j++) {
-				printf("Ok j [%d] from[%d] to[%d]\n", j, from, to);
-				printf("nextChildren :");
-				nextChildren = getNextChildren(graph, np, from, to, fill);
-				printf("nextChildren = [%d]\n", nextChildren);
-				to = nextChildren;
-				printf("From[%d] To[%d]\n", from, to);
-				insertPointInWay(&ways[j], graph, from, to);
-				fill[to] = 1;
-			}*/
 
-			for(j=i; j<nWays; j++) copyFillToWay(&ways[j], np, fill);
+			for(j=i; j<nWays; j++) copyFillToWay(&ways[j], np);
 
 			from = to;
 		}
@@ -500,13 +491,13 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 			printf("From[%d] To[%d]\n", from, to);
 			insertPointInWay(&ways[i], graph, from, to);
 			fill[to] = 1;
-			copyFillToWay(&ways[i], np, fill);
+			copyFillToWay(&ways[i], np);
 			from = to;
 		}
 		else if(num == 0) {
 			i++;
 		}
-		printWays(ways, nWays);
+		printWays(ways, nWays, np);
 
 		/*if(hasChildren(graph, from, np) == FALSE) {
 			insertPointInWay(&ways[j], graph, from, to);
@@ -514,8 +505,9 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 
 		printf("Inserted!\n");
 
-		//i = getIdFromWaysNotFinalized(graph, np, ways, nWays, fill);
-		if(i < nWays) from = ways[i].vector[ways[i].numOfPoints-1];
+		j = getIdFromWaysNotFinalized(graph, np, ways, nWays);
+		if(j != -1) i = j;
+		if(i < nWays && i != -1) from = ways[i].vector[ways[i].numOfPoints-1];
 		printf("I = %d FROM = %d ---- Enter...\n", i, from);
 	}
 
@@ -528,19 +520,19 @@ Way *workingWays(Way *ways, int nWays, Chamber *chambers, int nc, int np, int *n
 	int i, j, n = 0;
 
 	for(i=0; i<nWays; i++) {
-		printf("---- \t Way[%d]\n", i);
-		printf("\t Last element [%d]\n", ways[i].vector[ways[i].numOfPoints-1]);
+		//printf("---- \t Way[%d]\n", i);
+		//printf("\t Last element [%d]\n", ways[i].vector[ways[i].numOfPoints-1]);
 		for(j=0; j<nc; j++) {
-			printf("chamber[%d].v = %d\n", j, chambers[j].v);
+			//printf("chamber[%d].v = %d\n", j, chambers[j].v);
 			if((ways[i].vector[ways[i].numOfPoints-1] + 1) == chambers[j].v) {
-				printf("Entrou:: chamber[%d].o = %d\n", j, chambers[j].o);
+				//printf("Entrou:: chamber[%d].o = %d\n", j, chambers[j].o);
 				if(chambers[j].o == 1) {
 					reallocWay(&correct, &n, np, 1);
 					copyLastway(&correct[n-1], ways[i]);
 				}
 			}
 		}
-		printf("-------------\n");
+		//printf("-------------\n");
 	}
 
 	(*nw) = n;
@@ -655,7 +647,7 @@ int main() {
 	printf("Getting Possible Ways...startIdx[%d]\n", startIdx);
 	ways = getPossibleWays(graph, np, startIdx, &nWays);
 	printf("Printing WAYS...\n");
-	printWays(ways, nWays);
+	printWays(ways, nWays, np);
 
 	correctWays = correctWays = workingWays(ways, nWays, chambers, nc, np, &nw);
 	printf("\n ------ \t Printing CORRECT WAYS...\n");
