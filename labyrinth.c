@@ -510,11 +510,79 @@ Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 	return ways;
 }
 
+Way *workingWays(Way *ways, int nWays, Chamber *chambers, int nc, int np, int *nw) {
+	Way *correct = NULL;
+	int i, j, n = 0;
+
+	for(i=0; i<nWays; i++) {
+		printf("---- \t Way[%d]\n", i);
+		printf("\t Last element [%d]\n", ways[i].vector[ways[i].numOfPoints-1]);
+		for(j=0; j<nc; j++) {
+			printf("chamber[%d].v = %d\n", j, chambers[j].v);
+			if((ways[i].vector[ways[i].numOfPoints-1] + 1) == chambers[j].v) {
+				printf("Entrou:: chamber[%d].o = %d\n", j, chambers[j].o);
+				if(chambers[j].o == 1) {
+					reallocWay(&correct, &n, np, 1);
+					copyLastway(&correct[n-1], ways[i]);
+				}
+			}
+		}
+		printf("-------------\n");
+	}
+
+	(*nw) = n;
+	return correct;
+}
+
+void printSolution(Way *ways, int nWays) {
+	int i = 0, j = 0;
+
+	for(i=0; i<nWays; i++) {
+		printf("%d ", ways[i].numOfPoints);
+		for(j=0; j<ways[i].numOfPoints; j++) {
+			printf("%d ", ways[i].vector[j]+1);
+		}
+		printf("%d\n", (int)ways[i].totalDistance);
+	}
+	printf("%c", '\32');
+}
+
+void swapWays(Way first, Way second, int np) {
+	Way *aux = createWay(np);
+	copyLastway(aux, first);
+	copyLastway(&first, second);
+	copyLastway(&second, *aux);
+}
+
+void sortWays(Way *ways, int nWays, int np) {
+	int i, j;
+	for(i=0; i<nWays-1; i++) {
+			if(ways[i].totalDistance > ways[i+1].totalDistance) {
+				swapWays(ways[i], ways[i+1], np);
+			}
+			else if(ways[i].totalDistance == ways[i+1].totalDistance) {
+					if(ways[i].numOfPoints > ways[i+1].numOfPoints) {
+						swapWays(ways[i], ways[i+1], np);
+					}
+					else if(ways[i].numOfPoints == ways[i+1].numOfPoints) {
+							for(j=0; j<ways[i].numOfPoints; j++) {
+									if(ways[i].vector[j] > ways[i+1].vector[j]) {
+										swapWays(ways[i], ways[i+1], np);
+									}
+							}
+					}
+			}
+	}
+
+	printSolution(ways, nWays);
+}
+
 //MAIN FUNCTION================================================================
 int main() {
 	int np; //Number of points
 	int nc; //Number of chambers
 	int ns; //Number of segs
+	int nw = 0; //Number of ways
 	int nportals = 0, nWays = 0;
 	int i = 0;
 	Point *points = NULL;
@@ -522,7 +590,7 @@ int main() {
 	int startIdx;
 	Segment *segs = NULL;
 	Edge **graph = NULL;
-	Way *ways = NULL;
+	Way *ways = NULL, *correctWays = NULL;
 
 	//Getting number of points
 	scanf("%d", &np);
@@ -577,6 +645,11 @@ int main() {
 	printf("Printing WAYS...\n");
 	printWays(ways, nWays);
 
+	correctWays = correctWays = workingWays(ways, nWays, chambers, nc, np, &nw);
+	printf("\n ------ \t Printing CORRECT WAYS...\n");
+	//printWays(correctWays, nw);
+
+	sortWays(correctWays, nw, np);
 
 	//Free Everything
 	freeGraph(graph, np);
