@@ -39,6 +39,7 @@ typedef struct Way{
 	int numOfPoints;
 	float totalDistance;
 	BOOL finalized;
+	int *fill;
 } Way;
 
 //Point Functions==============================================================
@@ -147,10 +148,33 @@ Way *createWay(int np) {
 
 	way = (Way*)calloc(1, sizeof(Way));
 	way->vector = malloc(sizeof(int) * np);
-	for(i=0; i<np; i++) way->vector[i] = -1;
+	way->fill = malloc(sizeof(int) * np);
+	for(i=0; i<np; i++) {
+		way->vector[i] = -1;
+		way->fill[i] = 0;
+	}
 	way->numOfPoints = 0;
 
 	return way;
+}
+
+void copyFillFromWay(Way way, int np, int **fill) {
+	int i = 0;
+
+	for(i=0; i<np; i++) {
+		(*fill)[i] = way.fill[i];
+	}
+}
+
+void copyFillToWay(Way *way, int np, int *fill) {
+	int i = 0;
+
+	//printf("copyFillToWay::numOfPoints = %d\n", np);
+	for(i=0; i<np; i++) {
+		//printf("fill[%d] = %d\n", i, fill[i]);
+		//printf("way.fill[%d] = %d\n", i, (*way).fill[i]);
+		(*way).fill[i] = fill[i];
+	}
 }
 
 Edge **copyGraph(Edge **graph, int ng) {
@@ -233,10 +257,11 @@ BOOL isAllVisited(BOOL *visited, int n) {
 	return TRUE;
 }
 
-BOOL hasChildren(Edge **graph, int idx, int np) {
+BOOL hasChildren(Edge **graph, int idx, int np, int *fill) {
 	int j = 0;
 	for(j=0; j<np; j++)	{
 		if(j == idx) continue;
+		if(fill[j] == 1) continue;
 		if(graph[idx][j].dist >= 0) return TRUE;
 	}
 	return FALSE;
@@ -258,12 +283,13 @@ void printWay(int *vector, float sum) {
 	printf("%.2f\n", sum);
 }
 
-int getNextChildren(Edge **graph, int np, int idx, int ab) {
+int getNextChildren(Edge **graph, int np, int idx, int ab, int *fill) {
 	int i = 0;
 
 	if(idx >= np) return -1;
 
 	for(i=ab+1; i<np; i++) {
+		if(fill[i] == 1) continue;
 		if(graph[idx][i].dist >= 0) {
 			return i;
 		}
@@ -272,22 +298,43 @@ int getNextChildren(Edge **graph, int np, int idx, int ab) {
 	return -1;
 }
 
-void reallocWay(Way** ways, int *nWays, int np) {
-	int i = 0;
+int getNumberOfChildren(Edge **graph, int np, int idx, int *fill) {
+	int i = 0, count = 0;
 
-	(*ways) = (Way*)realloc((*ways), sizeof(Way)*((*nWays)+1));
-	(*ways)[(*nWays)].vector = malloc(sizeof(int) * np);
-	for(i=0; i<np; i++) (*ways)[(*nWays)].vector[i] = -1;
+	for(i=0; i<np; i++) {
+		if(i == idx) continue;
+		if(fill[i] == 1) continue;
+		if(graph[idx][i].dist >= 0) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+void reallocWay(Way** ways, int *nWays, int np, int count) {
+	int i = 0, j = 0;
+
+	(*ways) = (Way*)realloc((*ways), sizeof(Way)*((*nWays) + count));
 	
-	(*ways)[(*nWays)].numOfPoints = 0;
-	(*ways)[(*nWays)].totalDistance = 0;
-	(*ways)[(*nWays)].finalized =  FALSE;
+	for(j=0; j<count; j++) {
+		(*ways)[(*nWays)+j].vector = malloc(sizeof(int) * np);
+		(*ways)[(*nWays)+j].fill = malloc(sizeof(int) * np);
+		for(i=0; i<np; i++) {
+			(*ways)[(*nWays)+j].vector[i] = -1;
+			(*ways)[(*nWays)+j].fill[i] = 0;
+		}
+		
+		(*ways)[(*nWays)+j].numOfPoints = 0;
+		(*ways)[(*nWays)+j].totalDistance = 0;
+		(*ways)[(*nWays)+j].finalized =  FALSE;
+	}
 
-	(*nWays)++;
+	(*nWays) = (*nWays) + count;
 }
 
 void insertPointInWay(Way *way, Edge **graph, int from, int to) {
-	(*way).vector[(*way).numOfPoints] = from;
+	(*way).vector[(*way).numOfPoints] = to;
 	(*way).totalDistance = (*way).totalDistance + graph[from][to].dist;
 	(*way).finalized = graph[from][to].isPortal;
 	(*way).numOfPoints++;
@@ -322,64 +369,145 @@ int returnFather(Way way, int from) {
 }
 
 void copyLastway(Way *current, Way last) {
-	
+	int i = 0;
+
+	(*current).totalDistance = last.totalDistance;
+	(*current).finalized = last.finalized;
+	(*current).numOfPoints = last.numOfPoints;
+
+	for(i=0; i<last.numOfPoints; i++) {
+		(*current).vector[i] = last.vector[i];
+		(*current).fill[i] = last.fill[i];
+	}
 }
 
-void getPossibleWays(Edge **graph, int np, int startIdx) {
+/*
+void getWays(Edge **graph, int np, Way **ways, int *nways, int *i, int from, int to) {
+	int nextChildren = 0, children = from, num = 0;
+
+	insertPointInWay(&ways[i], graph, from, to);
+
+	if(getNextChildren(graph, np, from, to) == -1) return;
+	if((*ways)[i].finalized == TRUE) return;
+
+	num = getNumberOfChildren(graph, np, from);
+	(*nways) = (*nways) + num;
+	reallocWay(&ways, &nWays, np);
+
+	while((nextChildren = getNextChildren(graph, np, from, children)) != -1) {
+		i++;
+		copyLastway(&ways[i], ways[i-1]);
+		getWays(graph, np, ways, nways, i, from, to);
+		children = nextChildren;
+	}
+}*/
+
+int getIdFromWaysNotFinalized(Edge **graph, int np, Way *ways, int nWays, int *fill) {
+	int i = 0, from = 0;
+
+	for(i=0; i<nWays; i++) {
+		from = ways[i].vector[ways[i].numOfPoints-1];
+		printf("getIdFromWaysNotFinalized::from %d\n", from);
+		if(ways[i].finalized == TRUE && hasChildren(graph, from, np, fill) == FALSE) continue;
+		if(ways[i].finalized == FALSE && hasChildren(graph, from, np, fill) == FALSE) continue;
+		return i;
+	}
+
+	return -1;
+}
+
+Way *getPossibleWays(Edge **graph, int np, int startIdx, int *n) {
 	Way* ways = NULL;
-	int nWays = 0, i = 0;
-	int from = startIdx, to = startIdx, nextChildren = 0, last = startIdx;
+	int nWays = 0, i = 0, j = 0, old = 0;
+	int from = startIdx, to = startIdx, nextChildren = 0, num = 0;
+	int *fill = NULL;
+
+	fill = (int*)calloc(np, sizeof(int));
 
 	ways = createWay(np); nWays++; i = nWays - 1;
-	last = from;
-	printf("Indexes: from[%d] to[%d] last[%d]\n", from, to, last);
+	printf("Indexes: from[%d] to[%d]\n", from, to);
 	insertPointInWay(&ways[i], graph, from, to);
+	fill[to] = 1;
+	copyFillToWay(&ways[i], np, fill);
 	printWays(ways, nWays);
 
-	while(TRUE) {
-		printf("========from [%d] last [%d] to [%d]\n", from, last, to);
-		while((nextChildren = getNextChildren(graph, np, from, last)) != -1) {//Enquanto existe filhos
-			printf("nextChildren = %d\n", nextChildren);
-			to = nextChildren;
-			printf("---From[%d] To[%d]\n", from, to);
-			printf("--finalized[%d] = %d\n", i, ways[i].finalized);
-			if(ways[i].finalized == TRUE) {//Se está finalizado, criar outro way
-				printf("TRUE\n");
-				reallocWay(&ways, &nWays, np); i++;
-				insertPointInWay(&ways[i], graph, from, to);
-				from = to;
-				last = from;
-			}
-			else if(nextChildren != -1){ //Se não está finalizado, vai preenchendo no mesmo way
-				printf("FALSE\n");
-				insertPointInWay(&ways[i], graph, from, to);
-				from = to;
-				last = from;
-			}
-			else if(nextChildren == -1) {
-				last = from;
-				from = returnFather(ways[i], from);
-				printf("Parent = %d from %d\n", from, last);
-				reallocWay(&ways, &nWays, np); i++;
-			}
+	while(i < nWays && i != -1) {
+		getchar();
+		printf("\t I = %d\n", i);
+		copyFillFromWay(ways[i], np, &fill);
+
+		if(ways[i].finalized == TRUE && hasChildren(graph, ways[i].vector[ways[i].numOfPoints-1], np, fill) == TRUE) {
+			printf("finalized!\n");
+			reallocWay(&ways, &nWays, np, 1); i++;
+			copyLastway(&ways[i], ways[i-1]);
+			ways[i].finalized = FALSE;
+			from = ways[i].vector[ways[i].numOfPoints-1];
+			printWays(ways, nWays);
+			printf("0000000000 \t finalized! I = %d nWays = %d\n", i, nWays);
 		}
 
-		insertPointInWay(&ways[i], graph, from, from);
+		num = getNumberOfChildren(graph, np, from, fill);
+		printf("from [%d] - num = %d\n", from, num);
+		if(num > 1) {
+			num--;
+			old = nWays;
+			printf("Before nWays = %d i = %d\n", nWays, i);
+			reallocWay(&ways, &nWays, np, num);
+			printf("After nWays = %d i = %d\n", nWays, i);
 
-		//last = from;
-		//from = returnFather(ways[i], from);
-		//printf("Parent = %d from %d\n", from, last);
+			for(j=old; j<nWays; j++) {
+				copyLastway(&ways[j], ways[i]);
+			}
+			printf("Ways: nWays[%d] i[%d]----------\n", nWays, i);
+			printWays(ways, nWays);
+			printf("----------------\n");
 
-		printf("1Enter...\n");
-		getchar();
+			to = 0;
+			for(j=i; j<nWays; j++) {
+				printf("Ok j [%d] from[%d] to[%d]\n", j, from, to);
+				printf("nextChildren :");
+				nextChildren = getNextChildren(graph, np, from, to, fill);
+				printf("nextChildren = [%d]\n", nextChildren);
+				to = nextChildren;
+				printf("From[%d] To[%d]\n", from, to);
+				insertPointInWay(&ways[j], graph, from, to);
+				fill[to] = 1;
+				getchar();
+			}
 
+			for(j=i; j<nWays; j++) copyFillToWay(&ways[j], np, fill);
+
+			from = to;
+		}
+		else if(num == 1) {
+			to = 0;
+			printf("num==1, from[%d] to[%d]\n", from, to);
+			nextChildren = getNextChildren(graph, np, from, to, fill);
+			to = nextChildren;
+			printf("From[%d] To[%d]\n", from, to);
+			insertPointInWay(&ways[i], graph, from, to);
+			fill[to] = 1;
+			copyFillToWay(&ways[i], np, fill);
+			from = to;
+		}
+		else if(num == 0) {
+			i++;
+		}
 		printWays(ways, nWays);
 
-		printf("2Enter...\n");
-		getchar();
-	}
-	
+		/*if(hasChildren(graph, from, np) == FALSE) {
+			insertPointInWay(&ways[j], graph, from, to);
+		}*/
 
+		printf("Inserted!\n");
+
+		//i = getIdFromWaysNotFinalized(graph, np, ways, nWays, fill);
+		if(i < nWays) from = ways[i].vector[ways[i].numOfPoints-1];
+		printf("I = %d FROM = %d ---- Enter...\n", i, from);
+	}
+
+	(*n) = nWays;
+	return ways;
 }
 
 //MAIN FUNCTION================================================================
@@ -387,13 +515,14 @@ int main() {
 	int np; //Number of points
 	int nc; //Number of chambers
 	int ns; //Number of segs
-	int nportals = 0;
+	int nportals = 0, nWays = 0;
 	int i = 0;
 	Point *points = NULL;
 	Chamber *chambers = NULL;
 	int startIdx;
 	Segment *segs = NULL;
 	Edge **graph = NULL;
+	Way *ways = NULL;
 
 	//Getting number of points
 	scanf("%d", &np);
@@ -444,7 +573,9 @@ int main() {
 
 	//Working in this data
 	printf("Getting Possible Ways...startIdx[%d]\n", startIdx);
-	getPossibleWays(graph, np, startIdx);
+	ways = getPossibleWays(graph, np, startIdx, &nWays);
+	printf("Printing WAYS...\n");
+	printWays(ways, nWays);
 
 
 	//Free Everything
